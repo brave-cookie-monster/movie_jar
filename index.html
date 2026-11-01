@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decision Jar - Paper Slip Picker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        amber: {
+                            850: '#643714'
+                        }
+                    },
+                    animation: {
+                        'float-gentle': 'float 3s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .handwritten {
+            font-family: 'Caveat', cursive;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.7);
+        }
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Flying unfolded paper modal animation */
+        @keyframes unfold {
+            0% {
+                transform: scale(0.1) rotate(-20deg) translateY(200px);
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.05) rotate(3deg) translateY(-20px);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1) rotate(0deg) translateY(0);
+                opacity: 1;
+            }
+        }
+        .animate-unfold {
+            animation: unfold 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-300">
+
+    <!-- Header / Navbar -->
+    <header class="w-full border-b border-slate-200/80 dark:border-slate-800/80 glass-panel sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid font-bold fa-jar text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight">Paper Pick Jar</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Random decision picker</p>
+                </div>
+            </div>
+
+            <!-- Header Controls -->
+            <div class="flex items-center space-x-2">
+                <button id="soundToggleBtn" class="p-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition" title="Toggle Sound">
+                    <i class="fa-solid fa-volume-high text-lg" id="soundIcon"></i>
+                </button>
+                <button id="themeToggleBtn" class="p-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition" title="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon text-lg" id="themeIcon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Panel: Preset & Paper Slips Management -->
+        <section class="lg:col-span-5 flex flex-col space-y-5 order-2 lg:order-1">
+            
+            <!-- Quick Presets -->
+            <div class="glass-panel rounded-2xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Load Preset Jars</span>
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500 text-xs"></i>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="presetsContainer">
+                    <!-- Dynamic Preset Buttons injected here -->
+                </div>
+            </div>
+
+            <!-- Add & Manage Paper Slips -->
+            <div class="glass-panel rounded-2xl p-5 shadow-sm flex flex-col space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-base flex items-center gap-2">
+                        <i class="fa-solid fa-scroll text-amber-500"></i>
+                        <span>Jar Contents</span>
+                        <span id="slipCountBadge" class="bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 text-xs px-2 py-0.5 rounded-full font-semibold">0</span>
+                    </h2>
+                    <button id="clearAllBtn" class="text-xs text-rose-500 hover:text-rose-600 font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-trash-can"></i> Clear All
+                    </button>
+                </div>
+
+                <!-- Input Form -->
+                <form id="addSlipForm" class="flex gap-2">
+                    <input type="text" id="slipInput" placeholder="Add a new choice (e.g. Tacos)..." 
+                           class="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition" required>
+                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-medium px-4 py-2.5 rounded-xl text-sm transition shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-plus mr-1"></i> Add
+                    </button>
+                </form>
+
+                <!-- Bulk Add Drawer / Quick Text Area toggle -->
+                <div>
+                    <button id="toggleBulkBtn" class="text-xs text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1 transition">
+                        <i class="fa-solid fa-list-check text-xs"></i>
+                        <span>Paste multiple options (one per line)</span>
+                    </button>
+                    <div id="bulkContainer" class="hidden mt-3 space-y-2">
+                        <textarea id="bulkInput" rows="3" placeholder="Pizza&#10;Sushi&#10;Burgers&#10;Thai" 
+                                  class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition"></textarea>
+                        <button id="addBulkBtn" class="w-full bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white text-xs font-semibold py-2 rounded-lg transition">
+                            Add All Lines
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Current Slips List -->
+                <div class="border-t border-slate-200 dark:border-slate-800 pt-3">
+                    <div id="slipsList" class="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                        <!-- Dynamic list items will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawn History -->
+            <div class="glass-panel rounded-2xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Drawn History</span>
+                    <button id="clearHistoryBtn" class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Reset</button>
+                </div>
+                <div id="historyList" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
+                    <span class="text-xs text-slate-400 italic">No papers drawn yet.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Interactive Jar & Draw Action -->
+        <section class="lg:col-span-7 flex flex-col items-center justify-center space-y-6 order-1 lg:order-2 py-4">
+            
+            <!-- Visual Glass Jar Container -->
+            <div class="relative w-full max-w-sm aspect-[4/5] flex items-center justify-center group cursor-pointer" id="jarClickArea">
+                <!-- Glowing ambient background -->
+                <div class="absolute inset-0 bg-gradient-to-tr from-amber-400/20 via-orange-400/10 to-transparent blur-3xl rounded-full -z-10 opacity-70 dark:opacity-40 pointer-events-none"></div>
+                
+                <!-- Canvas Element for Canvas-based rendering -->
+                <canvas id="jarCanvas" class="w-full h-full object-contain filter drop-shadow-xl transition-transform duration-200 active:scale-95"></canvas>
+                
+                <!-- Helper overlay tooltip -->
+                <div class="absolute bottom-2 bg-slate-900/80 dark:bg-slate-800/90 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-md opacity-80 group-hover:opacity-100 transition shadow-lg pointer-events-none flex items-center gap-1.5">
+                    <i class="fa-solid fa-hand-pointer text-amber-400 text-xs"></i>
+                    <span>Tap jar or Shake device to rustle</span>
+                </div>
+            </div>
+
+            <!-- Main Draw Button -->
+            <div class="flex flex-col items-center space-y-3 w-full max-w-xs">
+                <button id="drawBtn" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white font-bold text-lg shadow-lg shadow-amber-500/30 transition transform flex items-center justify-center space-x-3">
+                    <i class="fa-solid fa-hand-holding text-xl"></i>
+                    <span>Draw a Paper Slip</span>
+                </button>
+
+                <div class="flex items-center justify-between w-full text-xs text-slate-500 dark:text-slate-400 px-2">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="removeOnDrawCheckbox" class="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400">
+                        <span>Remove paper when drawn</span>
+                    </label>
+                    <button id="shakeBtn" class="hover:text-amber-600 dark:hover:text-amber-400 transition font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-sync"></i> Shake Jar
+                    </button>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Drawn Result Modal -->
+    <div id="resultModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div id="modalCard" class="relative w-full max-w-md bg-amber-50 dark:bg-slate-900 border-2 border-amber-200 dark:border-slate-700 rounded-3xl p-8 shadow-2xl text-center transform scale-90 transition-all duration-300">
+            
+            <!-- Decorative Paper Tape Top -->
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-amber-200/80 dark:bg-amber-900/60 rotate-1 shadow-sm rounded-sm pointer-events-none border border-amber-300/50"></div>
+
+            <div class="mb-4 text-amber-600 dark:text-amber-400 text-3xl">
+                <i class="fa-solid fa-star animate-spin" style="animation-duration: 8s;"></i>
+            </div>
+            
+            <p class="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold mb-2">You pulled from the jar</p>
+            
+            <!-- Result Text with Handwritten Style -->
+            <div class="my-6 p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-inner border border-amber-100 dark:border-slate-700/60 min-h-[120px] flex items-center justify-center">
+                <p id="resultText" class="handwritten text-3xl sm:text-4xl text-slate-900 dark:text-amber-100 font-bold leading-relaxed break-words max-w-full">
+                    -
+                </p>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex gap-3 justify-center">
+                <button id="drawAgainBtn" class="px-5 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition">
+                    Draw Another
+                </button>
+                <button id="closeModalBtn" class="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm shadow-md shadow-amber-500/20 transition">
+                    Keep It!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        /**
+         * State & Persistent Data Management
+         */
+        const PRESETS = {
+            dinner: {
+                title: "Dinner",
+                icon: "fa-utensils",
+                items: ["Homemade Pizza", "Sushi Roll", "Tacos & Margaritas", "Thai Green Curry", "Classic Burgers", "Pasta Carbonara", "Pho Soup", "Ramen Bowl", "Mediterranean Salad"]
+            },
+            movies: {
+                title: "Movies",
+                icon: "fa-film",
+                items: ["Sci-Fi Classic", "90s Comedy", "Action Thriller", "Animated Feature", "Indie Drama", "Horror Night", "Documentary", "Rom-Com"]
+            },
+            activities: {
+                title: "Activities",
+                icon: "fa-person-hiking",
+                items: ["Go for a Bike Ride", "Board Game Session", "Bake Something New", "Visit a Local Museum", "Read for 1 Hour", "Call an Old Friend", "Try a New Coffee Shop"]
+            },
+            dates: {
+                title: "Date Night",
+                icon: "fa-heart",
+                items: ["Cook a 3-Course Dinner", "Stargazing Picnic", "Mini Golf", "Escape Room", "Paint & Sip Night", "Sunset Walk & Ice Cream", "Arcade Night"]
+            }
+        };
+
+        // Pastel color palette for paper slips inside the jar
+        const PAPER_COLORS = [
+            '#FCA5A5', // Soft Red
+            '#FDBA74', // Soft Orange
+            '#FDE047', // Soft Yellow
+            '#86EFAC', // Soft Green
+            '#93C5FD', // Soft Blue
+            '#C084FC', // Soft Purple
+            '#F472B6'  // Soft Pink
+        ];
+
+        let state = {
+            slips: [],
+            history: [],
+            removeOnDraw: false,
+            soundEnabled: true,
+            theme: 'light'
+        };
+
+        // Sound Synthesizer via Web Audio API
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+            }
+
+            playRustle() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                // Create noise buffer for paper rustle sound
+                const bufferSize = this.ctx.sampleRate * 0.15; // 150ms
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                // Bandpass filter to sound like paper shuffling
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1200;
+                filter.Q.value = 1.5;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start();
+            }
+
+            playPop() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(250, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+        }
+
+        const sfx = new SoundFX();
+
+        /**
+         * Canvas Physics & Simulation Engine
+         */
+        class JarCanvasRenderer {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = [];
+                this.shakeAmount = 0;
+                this.drawnParticle = null;
+                this.animFrame = null;
+
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.width = rect.width;
+                this.height = rect.height;
+                this.canvas.width = this.width * window.devicePixelRatio;
+                this.canvas.height = this.height * window.devicePixelRatio;
+                this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                this.initParticles();
+            }
+
+            initParticles() {
+                const count = state.slips.length;
+                this.particles = [];
+
+                // Jar bounding box calculations inside canvas
+                const jarBottom = this.height * 0.88;
+                const jarTop = this.height * 0.35;
+                const jarLeft = this.width * 0.22;
+                const jarRight = this.width * 0.78;
+
+                for (let i = 0; i < count; i++) {
+                    const color = PAPER_COLORS[i % PAPER_COLORS.length];
+                    this.particles.push({
+                        x: jarLeft + Math.random() * (jarRight - jarLeft),
+                        y: jarBottom - Math.random() * (jarBottom - jarTop) * 0.7 - 10,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        angle: Math.random() * Math.PI * 2,
+                        vAngle: (Math.random() - 0.5) * 0.05,
+                        width: 26 + Math.random() * 8,
+                        height: 14 + Math.random() * 4,
+                        color: color,
+                        text: state.slips[i]
+                    });
+                }
+            }
+
+            triggerShake() {
+                this.shakeAmount = 18;
+                sfx.playRustle();
+                this.particles.forEach(p => {
+                    p.vx += (Math.random() - 0.5) * 6;
+                    p.vy -= Math.random() * 5 + 2;
+                    p.vAngle += (Math.random() - 0.5) * 0.3;
+                });
+            }
+
+            drawJarBody() {
+                const ctx = this.ctx;
+                const w = this.width;
+                const h = this.height;
+
+                // Jar Dimensions
+                const jarX = w * 0.18;
+                const jarY = h * 0.26;
+                const jarW = w * 0.64;
+                const jarH = h * 0.64;
+                const radius = 30;
+
+                ctx.save();
+
+                // 1. Draw Cork Lid
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.roundRect(w * 0.3, jarY - 24, w * 0.4, 24, [8, 8, 2, 2]);
+                ctx.fill();
+                // Lid texture lines
+                ctx.fillStyle = '#92400e';
+                ctx.fillRect(w * 0.32, jarY - 16, w * 0.36, 3);
+
+                // 2. Jar Rim
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.ellipse(w * 0.5, jarY, jarW * 0.42, 10, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 3. Main Glass Body Silhouette & Fill
+                ctx.beginPath();
+                ctx.moveTo(w * 0.26, jarY);
+                ctx.lineTo(jarX + radius, jarY + 12);
+                ctx.quadraticCurveTo(jarX, jarY + 12, jarX, jarY + 12 + radius);
+                ctx.lineTo(jarX, jarY + jarH - radius);
+                ctx.quadraticCurveTo(jarX, jarY + jarH, jarX + radius, jarY + jarH);
+                ctx.lineTo(jarX + jarW - radius, jarY + jarH);
+                ctx.quadraticCurveTo(jarX + jarW, jarY + jarH, jarX + jarW, jarY + jarH - radius);
+                ctx.lineTo(jarX + jarW, jarY + 12 + radius);
+                ctx.quadraticCurveTo(jarX + jarW, jarY + 12, jarX + jarW - radius, jarY + 12);
+                ctx.lineTo(w * 0.74, jarY);
+                ctx.closePath();
+
+                // Glass Gradient
+                const glassGrad = ctx.createLinearGradient(jarX, 0, jarX + jarW, 0);
+                glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+                glassGrad.addColorStop(0.15, 'rgba(255, 255, 255, 0.08)');
+                glassGrad.addColorStop(0.85, 'rgba(255, 255, 255, 0.05)');
+                glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+                ctx.fillStyle = glassGrad;
+                ctx.fill();
+
+                // Outer glass outline
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // 4. Glass Glare Highlights
+                ctx.beginPath();
+                ctx.moveTo(jarX + 12, jarY + 40);
+                ctx.lineTo(jarX + 12, jarY + jarH - 30);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(jarX + 24, jarY + 50);
+                ctx.lineTo(jarX + 24, jarY + 100);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            render() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                ctx.save();
+                // Apply Shake Translate
+                if (this.shakeAmount > 0.1) {
+                    const offsetX = (Math.random() - 0.5) * this.shakeAmount;
+                    const offsetY = (Math.random() - 0.5) * this.shakeAmount;
+                    ctx.translate(offsetX, offsetY);
+                    this.shakeAmount *= 0.9;
+                } else {
+                    this.shakeAmount = 0;
+                }
+
+                // Jar Boundaries for Particle Collision
+                const jarBottom = this.height * 0.86;
+                const jarTop = this.height * 0.38;
+                const jarLeft = this.width * 0.22;
+                const jarRight = this.width * 0.78;
+
+                // Update & Render Paper Slips inside jar
+                for (let p of this.particles) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.angle += p.vAngle;
+
+                    // Gravity & Damping
+                    p.vy += 0.15;
+                    p.vx *= 0.95;
+                    p.vy *= 0.95;
+                    p.vAngle *= 0.96;
+
+                    // Boundary collision checks
+                    if (p.x < jarLeft + 10) { p.x = jarLeft + 10; p.vx *= -0.5; }
+                    if (p.x > jarRight - 10) { p.x = jarRight - 10; p.vx *= -0.5; }
+                    if (p.y > jarBottom - 10) { p.y = jarBottom - 10; p.vy *= -0.3; }
+                    if (p.y < jarTop) { p.y = jarTop; p.vy *= -0.5; }
+
+                    // Draw Paper Slip
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.angle);
+
+                    // Paper Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                    ctx.fillRect(-p.width/2 + 2, -p.height/2 + 2, p.width, p.height);
+
+                    // Folded Slip Body
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.roundRect(-p.width/2, -p.height/2, p.width, p.height, 3);
+                    ctx.fill();
+
+                    // Fold Crease Line
+                    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                    ctx.beginPath();
+                    ctx.moveTo(-p.width/4, -p.height/2);
+                    ctx.lineTo(-p.width/4, p.height/2);
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+
+                // Render Glass Jar Overlay (on top of paper slips for depth)
+                this.drawJarBody();
+
+                ctx.restore();
+
+                this.animFrame = requestAnimationFrame(() => this.render());
+            }
+        }
+
+        let renderer = null;
+
+        /**
+         * App Initialization & UI Controllers
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLocalStorage();
+            initTheme();
+            renderer = new JarCanvasRenderer('jarCanvas');
+            renderer.render();
+
+            renderPresets();
+            renderSlipsList();
+            renderHistory();
+            setupEventListeners();
+        });
+
+        function loadLocalStorage() {
+            const savedSlips = localStorage.getItem('jar_slips');
+            const savedHistory = localStorage.getItem('jar_history');
+            const savedSound = localStorage.getItem('jar_sound');
+            const savedTheme = localStorage.getItem('jar_theme');
+            const savedRemove = localStorage.getItem('jar_remove_draw');
+
+            if (savedSlips) {
+                state.slips = JSON.parse(savedSlips);
+            } else {
+                // Default initial slips
+                state.slips = [...PRESETS.dinner.items];
+            }
+
+            if (savedHistory) state.history = JSON.parse(savedHistory);
+            if (savedSound !== null) state.soundEnabled = JSON.parse(savedSound);
+            if (savedRemove !== null) state.removeOnDraw = JSON.parse(savedRemove);
+            if (savedTheme) state.theme = savedTheme;
+
+            document.getElementById('removeOnDrawCheckbox').checked = state.removeOnDraw;
+            updateSoundIcon();
+        }
+
+        function saveState() {
+            localStorage.setItem('jar_slips', JSON.stringify(state.slips));
+            localStorage.setItem('jar_history', JSON.stringify(state.history));
+            localStorage.setItem('jar_sound', JSON.stringify(state.soundEnabled));
+            localStorage.setItem('jar_remove_draw', JSON.stringify(state.removeOnDraw));
+            localStorage.setItem('jar_theme', state.theme);
+        }
+
+        function initTheme() {
+            if (state.theme === 'dark' || (!('jar_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                state.theme = 'dark';
+            } else {
+                document.documentElement.classList.remove('dark');
+                state.theme = 'light';
+            }
+            updateThemeIcon();
+        }
+
+        function updateThemeIcon() {
+            const icon = document.getElementById('themeIcon');
+            if (state.theme === 'dark') {
+                icon.className = 'fa-solid fa-sun text-amber-400 text-lg';
+            } else {
+                icon.className = 'fa-solid fa-moon text-slate-600 text-lg';
+            }
+        }
+
+        function updateSoundIcon() {
+            const icon = document.getElementById('soundIcon');
+            if (state.soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high text-amber-500 text-lg';
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-slate-400 text-lg';
+            }
+        }
+
+        function renderPresets() {
+            const container = document.getElementById('presetsContainer');
+            container.innerHTML = '';
+            
+            Object.keys(PRESETS).forEach(key => {
+                const preset = PRESETS[key];
+                const btn = document.createElement('button');
+                btn.className = 'flex flex-col items-center justify-center p-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-500 border border-slate-200 dark:border-slate-700/60 transition group text-slate-700 dark:text-slate-200';
+                btn.innerHTML = `
+                    <i class="fa-solid ${preset.icon} text-amber-500 group-hover:text-white text-base mb-1 transition"></i>
+                    <span class="text-xs font-semibold">${preset.title}</span>
+                `;
+                btn.addEventListener('click', () => loadPreset(key));
+                container.appendChild(btn);
+            });
+        }
+
+        function loadPreset(presetKey) {
+            if (PRESETS[presetKey]) {
+                state.slips = [...PRESETS[presetKey].items];
+                saveState();
+                renderSlipsList();
+                renderer.initParticles();
+                renderer.triggerShake();
+            }
+        }
+
+        function renderSlipsList() {
+            const list = document.getElementById('slipsList');
+            const badge = document.getElementById('slipCountBadge');
+            badge.innerText = state.slips.length;
+            list.innerHTML = '';
+
+            if (state.slips.length === 0) {
+                list.innerHTML = `<div class="text-xs text-slate-400 italic text-center py-4">Jar is empty! Add choices above.</div>`;
+                return;
+            }
+
+            state.slips.forEach((slip, index) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between px-3 py-2 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 group hover:border-amber-400 transition';
+                item.innerHTML = `
+                    <span class="truncate pr-2">${escapeHtml(slip)}</span>
+                    <button class="text-slate-400 hover:text-rose-500 transition opacity-0 group-hover:opacity-100" onclick="removeSlip(${index})">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '';
+
+            if (state.history.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">No papers drawn yet.</span>`;
+                return;
+            }
+
+            state.history.slice(-8).reverse().forEach(item => {
+                const tag = document.createElement('span');
+                tag.className = 'inline-block bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 text-[11px] px-2 py-0.5 rounded-md font-medium';
+                tag.innerText = item;
+                container.appendChild(tag);
+            });
+        }
+
+        function removeSlip(index) {
+            state.slips.splice(index, 1);
+            saveState();
+            renderSlipsList();
+            renderer.initParticles();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text;
+            return div.innerHTML;
+        }
+
+        /**
+         * Drawing Animation & Modal Handling
+         */
+        function drawRandomSlip() {
+            if (state.slips.length === 0) {
+                alertModal("The jar is empty! Add some paper slips first.");
+                return;
+            }
+
+            renderer.triggerShake();
+
+            // Pick a random slip
+            const randomIndex = Math.floor(Math.random() * state.slips.length);
+            const drawnText = state.slips[randomIndex];
+
+            // Trigger Pop audio effect after short rustle delay
+            setTimeout(() => {
+                sfx.playPop();
+                showResultModal(drawnText);
+
+                // Add to history
+                state.history.push(drawnText);
+
+                // Handle remove on draw option
+                if (state.removeOnDraw) {
+                    state.slips.splice(randomIndex, 1);
+                    renderSlipsList();
+                    renderer.initParticles();
+                }
+
+                saveState();
+                renderHistory();
+            }, 350);
+        }
+
+        function showResultModal(text) {
+            const modal = document.getElementById('resultModal');
+            const card = document.getElementById('modalCard');
+            const resultText = document.getElementById('resultText');
+
+            resultText.innerText = text;
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            card.classList.add('animate-unfold');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('resultModal');
+            const card = document.getElementById('modalCard');
+
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            card.classList.remove('animate-unfold');
+        }
+
+        function alertModal(msg) {
+            showResultModal(msg);
+        }
+
+        /**
+         * Setup Event Listeners
+         */
+        function setupEventListeners() {
+            // Add single slip
+            document.getElementById('addSlipForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const input = document.getElementById('slipInput');
+                const val = input.value.trim();
+                if (val) {
+                    state.slips.push(val);
+                    input.value = '';
+                    saveState();
+                    renderSlipsList();
+                    renderer.initParticles();
+                    sfx.playRustle();
+                }
+            });
+
+            // Toggle Bulk Area
+            document.getElementById('toggleBulkBtn').addEventListener('click', () => {
+                const container = document.getElementById('bulkContainer');
+                container.classList.toggle('hidden');
+            });
+
+            // Add Bulk Slips
+            document.getElementById('addBulkBtn').addEventListener('click', () => {
+                const textarea = document.getElementById('bulkInput');
+                const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                if (lines.length > 0) {
+                    state.slips.push(...lines);
+                    textarea.value = '';
+                    document.getElementById('bulkContainer').classList.add('hidden');
+                    saveState();
+                    renderSlipsList();
+                    renderer.initParticles();
+                    sfx.playRustle();
+                }
+            });
+
+            // Clear All Slips
+            document.getElementById('clearAllBtn').addEventListener('click', () => {
+                if (state.slips.length > 0) {
+                    state.slips = [];
+                    saveState();
+                    renderSlipsList();
+                    renderer.initParticles();
+                }
+            });
+
+            // Clear History
+            document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+                state.history = [];
+                saveState();
+                renderHistory();
+            });
+
+            // Draw Button & Canvas Click
+            document.getElementById('drawBtn').addEventListener('click', drawRandomSlip);
+            document.getElementById('jarClickArea').addEventListener('click', drawRandomSlip);
+            document.getElementById('shakeBtn').addEventListener('click', () => renderer.triggerShake());
+
+            // Remove on draw checkbox
+            document.getElementById('removeOnDrawCheckbox').addEventListener('change', (e) => {
+                state.removeOnDraw = e.target.checked;
+                saveState();
+            });
+
+            // Sound Toggle
+            document.getElementById('soundToggleBtn').addEventListener('click', () => {
+                state.soundEnabled = !state.soundEnabled;
+                saveState();
+                updateSoundIcon();
+            });
+
+            // Theme Toggle
+            document.getElementById('themeToggleBtn').addEventListener('click', () => {
+                state.theme = state.theme === 'light' ? 'dark' : 'light';
+                saveState();
+                initTheme();
+            });
+
+            // Modal Action Controls
+            document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+            document.getElementById('drawAgainBtn').addEventListener('click', () => {
+                closeModal();
+                setTimeout(drawRandomSlip, 300);
+            });
+
+            // Close Modal on Background Click
+            document.getElementById('resultModal').addEventListener('click', (e) => {
+                if (e.target.id === 'resultModal') closeModal();
+            });
+
+            // Device Motion (Shake Phone) Event for mobile browsers
+            if (window.DeviceMotionEvent) {
+                let lastX = 0, lastY = 0, lastZ = 0;
+                let lastTime = 0;
+
+                window.addEventListener('devicemotion', (e) => {
+                    const current = e.accelerationIncludingGravity;
+                    if (!current) return;
+
+                    const now = Date.now();
+                    if ((now - lastTime) > 100) {
+                        const diffTime = now - lastTime;
+                        lastTime = now;
+
+                        const speed = Math.abs(current.x + current.y + current.z - lastX - lastY - lastZ) / diffTime * 10000;
+
+                        if (speed > 800) {
+                            renderer.triggerShake();
+                        }
+
+                        lastX = current.x;
+                        lastY = current.y;
+                        lastZ = current.z;
+                    }
+                }, false);
+            }
+        }
+    </script>
+</body>
+</html>
