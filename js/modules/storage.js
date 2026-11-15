@@ -16,6 +16,7 @@ export class MovieStorage {
         this.tableName = CONFIG.supabase.defaultTable;
         this.hasAttemptedVercelEnv = false;
         this.hasSyncedLocalToRemote = false;
+        this.supportsAllColumns = true; // category, genre, watched
     }
 
     /**
@@ -29,7 +30,6 @@ export class MovieStorage {
             return true;
         }
 
-        // Try window.__ENV
         if (window.__ENV?.SUPABASE_ANON_KEY) {
             this.supabaseAnonKey = window.__ENV.SUPABASE_ANON_KEY.trim();
             if (this.supabaseAnonKey) {
@@ -38,7 +38,6 @@ export class MovieStorage {
             }
         }
 
-        // Try Vercel Serverless Function /api/config
         if (!this.hasAttemptedVercelEnv) {
             this.hasAttemptedVercelEnv = true;
             try {
@@ -73,7 +72,7 @@ export class MovieStorage {
         return {
             id: String(raw.id || raw._id || ('loc-' + Date.now() + Math.random().toString(36).substr(2, 5))),
             title: (raw.title || raw.name || raw.movie || 'Untitled Movie').trim(),
-            genre: Array.isArray(raw.genre) ? raw.genre.join(', ') : (raw.genre || raw.genres || 'Other'),
+            genre: Array.isArray(raw.genre) ? raw.genre.join(', ') : (raw.genre || raw.genres || 'Drama'),
             category: (raw.category || raw.owner || raw.type || 'rewatch').toLowerCase(),
             watched: Boolean(raw.watched || raw.is_watched || false),
             created_at: raw.created_at || new Date().toISOString()
@@ -82,14 +81,14 @@ export class MovieStorage {
 
     /**
      * Fetch all movies from Supabase.
-     * Automatically uploads any existing local movies to Supabase so nothing is lost!
      */
     async getMovies() {
         await this.ensureCredentials();
 
         if (this.hasSupabaseCredentials()) {
             try {
-                const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}?select=*&order=created_at.desc`;
+                // Use order=id.desc to avoid failing if created_at column doesn't exist yet
+                const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}?select=*&order=id.desc`;
                 const res = await fetch(endpoint, {
                     headers: {
                         'apikey': this.supabaseAnonKey,
@@ -104,9 +103,10 @@ export class MovieStorage {
                         const normalizedRemote = remoteData.map(m => this.normalizeMovie(m));
 
                         // Auto-sync: If user added movies locally, push them to Supabase
-                        if (!this.hasSyncedLocalToRemote) {
+                        if (!this.hasSyncedLocalToRemote && normalizedRemote.length >= 0) {
                             this.hasSyncedLocalToRemote = true;
                             await this.syncLocalMoviesToSupabase(normalizedRemote);
+                            
                             // Re-fetch after syncing
                             const refreshedRes = await fetch(endpoint, {
                                 headers: {
@@ -127,7 +127,8 @@ export class MovieStorage {
                         return normalizedRemote;
                     }
                 } else {
-                    console.warn(`Supabase returned status ${res.status}. Using cache.`);
+                    const errBody = await res.json().catch(() => ({}));
+                    console.warn(`Supabase getMovies returned ${res.status}:`, errBody);
                 }
             } catch (err) {
                 console.warn('Supabase fetch failed, using local cache:', err);
@@ -138,18 +139,67 @@ export class MovieStorage {
     }
 
     /**
-     * Ensures any movies currently in local storage are safely uploaded to Supabase
+     * Synchronize local movies to Supabase
      */
     async syncLocalMoviesToSupabase(remoteMovies) {
         const local = this.getLocalCache();
         const remoteTitles = new Set(remoteMovies.map(m => m.title.toLowerCase().trim()));
-
         const missingInRemote = local.filter(m => !remoteTitles.has(m.title.toLowerCase().trim()));
 
         for (const item of missingInRemote) {
-            try {
-                const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}`;
-                await fetch(endpoint, {
+            await this.postMovieToSupabase(item);
+        }
+    }
+
+    /**
+     * Post helper with fallback for missing schema columns and clear RLS error reporting
+     */
+    async postMovieToSupabase(item) {
+        const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}`;
+
+        // Attempt 1: Full payload
+        const fullPayload = {
+            title: item.title,
+            genre: item.genre,
+            category: item.category,
+            watched: item.watched
+        };
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'apikey': this.supabaseAnonKey,
+                    'Authorization': `Bearer ${this.supabaseAnonKey}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(fullPayload)
+            });
+
+            if (res.ok) {
+                const returned = await res.json();
+                return returned?.[0] || item;
+            }
+
+            const errorData = await res.json().catch(() => ({}));
+            
+            // Check for Row-Level Security (RLS) error
+            if (errorData.code === '42501') {
+                console.error(
+                    '%c[Supabase RLS Error] Table "Movies" blocks writes because Row Level Security is active.\n' +
+                    'Fix it by running this in Supabase SQL Editor:\n' +
+                    'ALTER TABLE "Movies" DISABLE ROW LEVEL SECURITY;',
+                    'color: #f43f5e; font-weight: bold;'
+                );
+                return null;
+            }
+
+            // Check if column is missing (PGRST204)
+            if (errorData.code === 'PGRST204') {
+                console.warn('[Supabase Schema Notice] Missing column in "Movies" table. Trying title-only fallback...', errorData.message);
+                // Fallback attempt: Title only
+                const titleRes = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'apikey': this.supabaseAnonKey,
@@ -157,53 +207,32 @@ export class MovieStorage {
                         'Content-Type': 'application/json',
                         'Prefer': 'return=representation'
                     },
-                    body: JSON.stringify({
-                        title: item.title,
-                        genre: item.genre,
-                        category: item.category,
-                        watched: item.watched
-                    })
+                    body: JSON.stringify({ title: item.title })
                 });
-            } catch (e) {
-                console.warn('Auto-sync item failed:', item.title, e);
+
+                if (titleRes.ok) {
+                    const returned = await titleRes.json();
+                    return returned?.[0] || item;
+                }
             }
+        } catch (e) {
+            console.warn('Network error posting to Supabase:', e);
         }
+
+        return null;
     }
 
     /**
-     * Add a new movie directly to Supabase and update local cache
+     * Add a new movie
      */
     async addMovie(movie) {
         const item = this.normalizeMovie(movie);
         await this.ensureCredentials();
 
         if (this.hasSupabaseCredentials()) {
-            try {
-                const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}`;
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': this.supabaseAnonKey,
-                        'Authorization': `Bearer ${this.supabaseAnonKey}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify({
-                        title: item.title,
-                        genre: item.genre,
-                        category: item.category,
-                        watched: item.watched
-                    })
-                });
-
-                if (res.ok) {
-                    const returned = await res.json();
-                    if (Array.isArray(returned) && returned[0]) {
-                        item.id = String(returned[0].id || item.id);
-                    }
-                }
-            } catch (err) {
-                console.warn('Could not post to Supabase, saving to local cache:', err);
+            const returned = await this.postMovieToSupabase(item);
+            if (returned && returned.id) {
+                item.id = String(returned.id);
             }
         }
 
@@ -287,7 +316,6 @@ export class MovieStorage {
                 console.error(e);
             }
         }
-        // Initialize with default movies (which contains the user's added movies!)
         const initial = CONFIG.defaultMovies.map(m => this.normalizeMovie(m));
         this.saveLocalCache(initial);
         return initial;
