@@ -69,16 +69,24 @@ export const CONFIG = {
         'Thriller'
     ],
 
-    // Default starter movies if localStorage and Supabase are empty
+    // Default starter movies, including all the user's rewatch picks from their session
     defaultMovies: [
-        { id: '1', title: 'Blade Runner 2049', category: 'mine', genre: 'Sci-Fi', watched: false },
-        { id: '2', title: 'Arrival', category: 'mine', genre: 'Sci-Fi', watched: false },
-        { id: '3', title: 'The Prestige', category: 'mine', genre: 'Mystery', watched: false },
-        { id: '4', title: 'La La Land', category: 'hers', genre: 'Romance', watched: false },
-        { id: '5', title: 'Little Women', category: 'hers', genre: 'Drama', watched: false },
-        { id: '6', title: 'Pride & Prejudice', category: 'hers', genre: 'Romance', watched: false },
-        { id: '7', title: 'Spirited Away', category: 'rewatch', genre: 'Animation', watched: false },
-        { id: '8', title: 'The Grand Budapest Hotel', category: 'rewatch', genre: 'Comedy', watched: false },
-        { id: '9', title: 'Parasite', category: 'rewatch', genre: 'Thriller', watched: false }
+        // User's added rewatches
+        { id: 'rw-1', title: 'The love trilogy', category: 'rewatch', genre: 'Drama', watched: false },
+        { id: 'rw-2', title: 'In the mood for love', category: 'rewatch', genre: 'Drama', watched: false },
+        { id: 'rw-3', title: 'The Odyssey', category: 'rewatch', genre: 'Drama', watched: false },
+        { id: 'rw-4', title: '2001: A Space Odessey', category: 'rewatch', genre: 'Sci-Fi', watched: false },
+        { id: 'rw-5', title: 'Intouchables', category: 'rewatch', genre: 'Drama', watched: false },
+        { id: 'rw-6', title: 'Good will hunting', category: 'rewatch', genre: 'Drama', watched: false },
+        { id: 'rw-7', title: 'Your Name <3', category: 'rewatch', genre: 'Animation', watched: false },
+        { id: 'rw-8', title: 'Arrival', category: 'rewatch', genre: 'Sci-Fi', watched: false },
+        // My movies (user picks)
+        { id: 'm-1', title: 'Blade Runner 2049', category: 'mine', genre: 'Sci-Fi', watched: false },
+        { id: 'm-2', title: 'The Prestige', category: 'mine', genre: 'Mystery', watched: false },
+        { id: 'm-3', title: 'Interstellar', category: 'mine', genre: 'Sci-Fi', watched: false },
+        // Her movies (friend picks)
+        { id: 'h-1', title: 'La La Land', category: 'hers', genre: 'Romance', watched: false },
+        { id: 'h-2', title: 'Little Women', category: 'hers', genre: 'Drama', watched: false },
+        { id: 'h-3', title: 'Pride & Prejudice', category: 'hers', genre: 'Romance', watched: false }
     ]
 };

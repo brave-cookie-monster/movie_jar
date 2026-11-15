@@ -35,7 +35,6 @@ class MovieJarApp {
         this.setupEventListeners();
         await this.loadMovies();
         this.renderAll();
-        this.updateSyncStatusBadge();
     }
 
     initTheme() {
@@ -357,7 +356,6 @@ class MovieJarApp {
     }
 
     populateGenreDropdown() {
-        // Collect all distinct genres from CONFIG + existing movies
         const genreSet = new Set(CONFIG.genres);
         this.movies.forEach(m => {
             if (m.genre) {
@@ -462,19 +460,6 @@ class MovieJarApp {
         await this.loadMovies();
         this.renderAll();
         this.jar.shake(14);
-    }
-
-    updateSyncStatusBadge() {
-        const badge = document.getElementById('supabaseStatusBadge');
-        if (!badge) return;
-
-        if (this.storage.hasSupabaseCredentials()) {
-            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
-            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span>Supabase Connected</span>`;
-        } else {
-            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20';
-            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span><span>Local Storage</span>`;
-        }
     }
 
     setupEventListeners() {
@@ -589,9 +574,6 @@ class MovieJarApp {
             if (e.target.id === 'resultModal') this.closeResultModal();
         });
 
-        // Supabase Settings Modal
-        this.setupSupabaseModal();
-
         // Phone shake motion detector
         if (window.DeviceMotionEvent) {
             let lastX = 0, lastY = 0, lastZ = 0, lastTime = 0;
@@ -610,57 +592,6 @@ class MovieJarApp {
                 }
             }, false);
         }
-    }
-
-    setupSupabaseModal() {
-        const modal = document.getElementById('settingsModal');
-        const openBtn = document.getElementById('openSettingsBtn');
-        const closeBtn = document.getElementById('closeSettingsBtn');
-        const saveBtn = document.getElementById('saveSettingsBtn');
-        const testBtn = document.getElementById('testSupabaseBtn');
-        const statusMsg = document.getElementById('supabaseTestResult');
-
-        const anonKeyInput = document.getElementById('supabaseAnonKeyInput');
-        const urlInput = document.getElementById('supabaseUrlInput');
-        const tableInput = document.getElementById('supabaseTableInput');
-
-        openBtn?.addEventListener('click', () => {
-            if (anonKeyInput) anonKeyInput.value = this.storage.supabaseAnonKey;
-            if (urlInput) urlInput.value = this.storage.supabaseUrl;
-            if (tableInput) tableInput.value = this.storage.tableName;
-            if (statusMsg) statusMsg.innerHTML = '';
-            modal?.classList.remove('opacity-0', 'pointer-events-none');
-        });
-
-        closeBtn?.addEventListener('click', () => {
-            modal?.classList.add('opacity-0', 'pointer-events-none');
-        });
-
-        modal?.addEventListener('click', (e) => {
-            if (e.target.id === 'settingsModal') {
-                modal?.classList.add('opacity-0', 'pointer-events-none');
-            }
-        });
-
-        testBtn?.addEventListener('click', async () => {
-            if (statusMsg) statusMsg.innerHTML = '<span class="text-amber-500"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Testing connection...</span>';
-            const res = await this.storage.testConnection(anonKeyInput.value, urlInput.value, tableInput.value);
-            if (statusMsg) {
-                if (res.ok) {
-                    statusMsg.innerHTML = `<span class="text-emerald-500 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i> ${res.message}</span>`;
-                } else {
-                    statusMsg.innerHTML = `<span class="text-rose-500 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> ${res.message}</span>`;
-                }
-            }
-        });
-
-        saveBtn?.addEventListener('click', async () => {
-            this.storage.updateSupabaseConfig(anonKeyInput.value, urlInput.value, tableInput.value);
-            this.updateSyncStatusBadge();
-            modal?.classList.add('opacity-0', 'pointer-events-none');
-            await this.loadMovies();
-            this.renderAll();
-        });
     }
 
     escapeHtml(text) {

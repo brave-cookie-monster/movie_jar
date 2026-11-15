@@ -1,6 +1,7 @@
 /**
  * Storage & Supabase Sync Layer
- * Manages movies in Supabase REST API with transparent LocalStorage fallback.
+ * Manages movies in Supabase REST API always, with transparent caching
+ * and automatic synchronization of locally added movies to Supabase.
  */
 
 import { CONFIG } from './config.js';
@@ -10,36 +11,59 @@ const STORAGE_KEY_HISTORY = 'movie_jar_history';
 
 export class MovieStorage {
     constructor() {
-        this.supabaseUrl = localStorage.getItem(CONFIG.supabase.storageKeyUrl) || CONFIG.supabase.url;
-        this.supabaseAnonKey = localStorage.getItem(CONFIG.supabase.storageKeyAnon) || '';
-        this.tableName = localStorage.getItem(CONFIG.supabase.storageKeyTable) || CONFIG.supabase.defaultTable;
-        this.isSupabaseActive = Boolean(this.supabaseAnonKey && this.supabaseAnonKey.trim().length > 0);
+        this.supabaseUrl = (window.__ENV?.SUPABASE_URL) || CONFIG.supabase.url;
+        this.supabaseAnonKey = (window.__ENV?.SUPABASE_ANON_KEY) || localStorage.getItem(CONFIG.supabase.storageKeyAnon) || '';
+        this.tableName = CONFIG.supabase.defaultTable;
+        this.hasAttemptedVercelEnv = false;
+        this.hasSyncedLocalToRemote = false;
     }
 
     /**
-     * Check if Supabase credentials are configured
+     * Resolves the Supabase Anon Key from:
+     * 1. window.__ENV (from env.js)
+     * 2. Vercel serverless /api/config endpoint
+     * 3. localStorage cache
      */
-    hasSupabaseCredentials() {
+    async ensureCredentials() {
+        if (this.supabaseAnonKey && this.supabaseAnonKey.trim().length > 0) {
+            return true;
+        }
+
+        // Try window.__ENV
+        if (window.__ENV?.SUPABASE_ANON_KEY) {
+            this.supabaseAnonKey = window.__ENV.SUPABASE_ANON_KEY.trim();
+            if (this.supabaseAnonKey) {
+                localStorage.setItem(CONFIG.supabase.storageKeyAnon, this.supabaseAnonKey);
+                return true;
+            }
+        }
+
+        // Try Vercel Serverless Function /api/config
+        if (!this.hasAttemptedVercelEnv) {
+            this.hasAttemptedVercelEnv = true;
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.supabaseAnonKey && data.supabaseAnonKey.trim()) {
+                        this.supabaseAnonKey = data.supabaseAnonKey.trim();
+                        if (data.supabaseUrl) {
+                            this.supabaseUrl = data.supabaseUrl.trim().replace(/\/+$/, '');
+                        }
+                        localStorage.setItem(CONFIG.supabase.storageKeyAnon, this.supabaseAnonKey);
+                        return true;
+                    }
+                }
+            } catch (e) {
+                // Not running in Vercel or /api not available
+            }
+        }
+
         return Boolean(this.supabaseAnonKey && this.supabaseAnonKey.trim().length > 0);
     }
 
-    /**
-     * Update Supabase connection credentials
-     */
-    updateSupabaseConfig(anonKey, customUrl, customTable) {
-        if (typeof anonKey === 'string') {
-            this.supabaseAnonKey = anonKey.trim();
-            localStorage.setItem(CONFIG.supabase.storageKeyAnon, this.supabaseAnonKey);
-        }
-        if (typeof customUrl === 'string' && customUrl.trim()) {
-            this.supabaseUrl = customUrl.trim().replace(/\/+$/, '');
-            localStorage.setItem(CONFIG.supabase.storageKeyUrl, this.supabaseUrl);
-        }
-        if (typeof customTable === 'string' && customTable.trim()) {
-            this.tableName = customTable.trim();
-            localStorage.setItem(CONFIG.supabase.storageKeyTable, this.tableName);
-        }
-        this.isSupabaseActive = Boolean(this.supabaseAnonKey && this.supabaseAnonKey.length > 0);
+    hasSupabaseCredentials() {
+        return Boolean(this.supabaseAnonKey && this.supabaseAnonKey.trim().length > 0);
     }
 
     /**
@@ -47,19 +71,22 @@ export class MovieStorage {
      */
     normalizeMovie(raw) {
         return {
-            id: String(raw.id || raw._id || Date.now() + Math.random().toString(36).substr(2, 5)),
-            title: raw.title || raw.name || raw.movie || 'Untitled Movie',
+            id: String(raw.id || raw._id || ('loc-' + Date.now() + Math.random().toString(36).substr(2, 5))),
+            title: (raw.title || raw.name || raw.movie || 'Untitled Movie').trim(),
             genre: Array.isArray(raw.genre) ? raw.genre.join(', ') : (raw.genre || raw.genres || 'Other'),
-            category: (raw.category || raw.owner || raw.type || 'mine').toLowerCase(),
+            category: (raw.category || raw.owner || raw.type || 'rewatch').toLowerCase(),
             watched: Boolean(raw.watched || raw.is_watched || false),
             created_at: raw.created_at || new Date().toISOString()
         };
     }
 
     /**
-     * Fetch all movies from Supabase or LocalStorage fallback
+     * Fetch all movies from Supabase.
+     * Automatically uploads any existing local movies to Supabase so nothing is lost!
      */
     async getMovies() {
+        await this.ensureCredentials();
+
         if (this.hasSupabaseCredentials()) {
             try {
                 const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}?select=*&order=created_at.desc`;
@@ -72,17 +99,38 @@ export class MovieStorage {
                 });
 
                 if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data)) {
-                        const normalized = data.map(m => this.normalizeMovie(m));
-                        this.saveLocalCache(normalized);
-                        return normalized;
+                    const remoteData = await res.json();
+                    if (Array.isArray(remoteData)) {
+                        const normalizedRemote = remoteData.map(m => this.normalizeMovie(m));
+
+                        // Auto-sync: If user added movies locally, push them to Supabase
+                        if (!this.hasSyncedLocalToRemote) {
+                            this.hasSyncedLocalToRemote = true;
+                            await this.syncLocalMoviesToSupabase(normalizedRemote);
+                            // Re-fetch after syncing
+                            const refreshedRes = await fetch(endpoint, {
+                                headers: {
+                                    'apikey': this.supabaseAnonKey,
+                                    'Authorization': `Bearer ${this.supabaseAnonKey}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            if (refreshedRes.ok) {
+                                const refreshedData = await refreshedRes.json();
+                                const refreshedNormalized = refreshedData.map(m => this.normalizeMovie(m));
+                                this.saveLocalCache(refreshedNormalized);
+                                return refreshedNormalized;
+                            }
+                        }
+
+                        this.saveLocalCache(normalizedRemote);
+                        return normalizedRemote;
                     }
                 } else {
-                    console.warn(`Supabase returned status ${res.status}. Falling back to cache.`);
+                    console.warn(`Supabase returned status ${res.status}. Using cache.`);
                 }
             } catch (err) {
-                console.warn('Supabase fetch failed, using local storage cache:', err);
+                console.warn('Supabase fetch failed, using local cache:', err);
             }
         }
 
@@ -90,12 +138,45 @@ export class MovieStorage {
     }
 
     /**
-     * Add a new movie
+     * Ensures any movies currently in local storage are safely uploaded to Supabase
+     */
+    async syncLocalMoviesToSupabase(remoteMovies) {
+        const local = this.getLocalCache();
+        const remoteTitles = new Set(remoteMovies.map(m => m.title.toLowerCase().trim()));
+
+        const missingInRemote = local.filter(m => !remoteTitles.has(m.title.toLowerCase().trim()));
+
+        for (const item of missingInRemote) {
+            try {
+                const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}`;
+                await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': this.supabaseAnonKey,
+                        'Authorization': `Bearer ${this.supabaseAnonKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        title: item.title,
+                        genre: item.genre,
+                        category: item.category,
+                        watched: item.watched
+                    })
+                });
+            } catch (e) {
+                console.warn('Auto-sync item failed:', item.title, e);
+            }
+        }
+    }
+
+    /**
+     * Add a new movie directly to Supabase and update local cache
      */
     async addMovie(movie) {
         const item = this.normalizeMovie(movie);
+        await this.ensureCredentials();
 
-        // Try Supabase first if active
         if (this.hasSupabaseCredentials()) {
             try {
                 const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}`;
@@ -122,11 +203,10 @@ export class MovieStorage {
                     }
                 }
             } catch (err) {
-                console.warn('Could not post to Supabase, saving locally:', err);
+                console.warn('Could not post to Supabase, saving to local cache:', err);
             }
         }
 
-        // Always update local cache
         const local = this.getLocalCache();
         local.unshift(item);
         this.saveLocalCache(local);
@@ -137,6 +217,8 @@ export class MovieStorage {
      * Delete a movie by ID
      */
     async deleteMovie(id) {
+        await this.ensureCredentials();
+
         if (this.hasSupabaseCredentials()) {
             try {
                 const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}?id=eq.${id}`;
@@ -161,6 +243,8 @@ export class MovieStorage {
      * Mark movie as watched
      */
     async markWatched(id, watched = true) {
+        await this.ensureCredentials();
+
         if (this.hasSupabaseCredentials()) {
             try {
                 const endpoint = `${this.supabaseUrl}/rest/v1/${this.tableName}?id=eq.${id}`;
@@ -189,48 +273,21 @@ export class MovieStorage {
     }
 
     /**
-     * Test Supabase connection
-     */
-    async testConnection(anonKey, url, table) {
-        const testUrl = (url || this.supabaseUrl).replace(/\/+$/, '');
-        const testKey = anonKey || this.supabaseAnonKey;
-        const testTable = table || this.tableName;
-
-        try {
-            const endpoint = `${testUrl}/rest/v1/${testTable}?select=*&limit=1`;
-            const res = await fetch(endpoint, {
-                headers: {
-                    'apikey': testKey,
-                    'Authorization': `Bearer ${testKey}`
-                }
-            });
-            return {
-                ok: res.ok,
-                status: res.status,
-                message: res.ok ? 'Connected successfully to Supabase!' : `Server responded with HTTP ${res.status}`
-            };
-        } catch (err) {
-            return {
-                ok: false,
-                status: 0,
-                message: `Network error: ${err.message}`
-            };
-        }
-    }
-
-    /**
-     * LocalStorage helpers
+     * Local storage cache methods
      */
     getLocalCache() {
         const saved = localStorage.getItem(STORAGE_KEY_MOVIES);
         if (saved) {
             try {
-                return JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
+                }
             } catch (e) {
                 console.error(e);
             }
         }
-        // Initialize with default movies if completely empty
+        // Initialize with default movies (which contains the user's added movies!)
         const initial = CONFIG.defaultMovies.map(m => this.normalizeMovie(m));
         this.saveLocalCache(initial);
         return initial;
@@ -241,7 +298,7 @@ export class MovieStorage {
     }
 
     /**
-     * Draw history management
+     * History methods
      */
     getHistory() {
         const saved = localStorage.getItem(STORAGE_KEY_HISTORY);
