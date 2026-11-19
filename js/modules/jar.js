@@ -77,24 +77,67 @@ export const JAR_STYLE = {
         shadowColor: 'rgba(0, 0, 0, 0.14)',
         shadowOffset: 2,
 
-        // Category-based colors for slips inside the jar
-        categoryColors: {
-            mine: '#FBBF24',      // Warm Amber (King Ali)
-            hers: '#FB7185',      // Soft Rose / Pink (Queen Dana)
-            rewatch: '#818CF8',   // Indigo / Violet (Rewatches)
-            default: '#38BDF8'    // Soft Cyan
-        },
+        // 'vibrant' gives every snippet a distinct color across the rainbow palette;
+        // 'category' gives each snippet a distinct shade within its category theme.
+        colorMode: 'vibrant',
 
-        // Fallback pastel palette if category is unspecified
+        // Vibrant multi-color palette: Every paper snippet inside the jar has a unique color
         palette: [
-            '#FCA5A5', // Soft Red
-            '#FDBA74', // Soft Orange
-            '#FDE047', // Soft Yellow
-            '#86EFAC', // Soft Green
-            '#93C5FD', // Soft Blue
-            '#C084FC', // Soft Purple
-            '#F472B6'  // Soft Pink
-        ]
+            '#F87171', // Coral Red
+            '#FB923C', // Warm Tangerine
+            '#FBBF24', // Golden Amber
+            '#FACC15', // Sunflower Yellow
+            '#A3E635', // Fresh Lime
+            '#34D399', // Mint Emerald
+            '#2DD4BF', // Turquoise Teal
+            '#38BDF8', // Sky Blue
+            '#60A5FA', // Periwinkle Blue
+            '#818CF8', // Soft Indigo
+            '#A78BFA', // Lavender
+            '#C084FC', // Bright Violet
+            '#E879F9', // Orchid
+            '#F472B6', // Cotton Candy Pink
+            '#FB7185', // Soft Rose
+            '#F43F5E', // Crimson Ruby
+            '#06B6D4', // Deep Cyan
+            '#FDE047', // Light Sunburst
+        ],
+
+        // Category-themed multi-shade palettes (so slips within any category are also distinct)
+        categoryPalettes: {
+            mine: [
+                '#F59E0B', // Rich Amber (King Ali)
+                '#FBBF24', // Warm Gold
+                '#FCD34D', // Light Gold
+                '#F97316', // Sunset Orange
+                '#FB923C', // Tangerine
+                '#EAB308', // Sunflower
+                '#D97706', // Ochre Bronze
+                '#FEF08A', // Butter Yellow
+            ],
+            hers: [
+                '#F43F5E', // Vibrant Rose (Queen Dana)
+                '#FB7185', // Coral Pink
+                '#FDA4AF', // Blush Pink
+                '#EC4899', // Deep Pink
+                '#F472B6', // Bubblegum Pink
+                '#E11D48', // Ruby
+                '#DB2777', // Fuchsia
+                '#FBCFE8', // Light Rose
+            ],
+            rewatch: [
+                '#6366F1', // Indigo (Rewatches)
+                '#818CF8', // Soft Indigo
+                '#8B5CF6', // Purple
+                '#A78BFA', // Lavender
+                '#2DD4BF', // Turquoise
+                '#38BDF8', // Sky Blue
+                '#C084FC', // Violet
+                '#34D399', // Emerald Mint
+                '#E879F9', // Orchid
+                '#06B6D4', // Deep Cyan
+            ]
+        }
     },
 
     // 5. Physics & Movement
@@ -178,14 +221,21 @@ export class Jar {
     }
 
     /**
-     * Get slip color based on movie category
+     * Get slip color giving each paper snippet in the jar a distinct color
      */
     getItemColor(item, index) {
         if (item.color) return item.color;
-        if (item.category && this.style.slips.categoryColors[item.category]) {
-            return this.style.slips.categoryColors[item.category];
+        const sCfg = this.style.slips;
+
+        // If category-specific mode is explicitly selected:
+        if (sCfg.colorMode === 'category' && item.category && sCfg.categoryPalettes?.[item.category]) {
+            const catPalette = sCfg.categoryPalettes[item.category];
+            return catPalette[index % catPalette.length];
         }
-        return this.style.slips.palette[index % this.style.slips.palette.length];
+
+        // Default vibrant multi-color mode: every snippet in the jar gets a distinct color
+        const palette = sCfg.palette;
+        return palette[index % palette.length];
     }
 
     /**
