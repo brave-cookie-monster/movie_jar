@@ -80,13 +80,5 @@ export const CONFIG = {
         { id: 'rw-6', title: 'Good will hunting', category: 'rewatch', genre: 'Drama', watched: false },
         { id: 'rw-7', title: 'Your Name <3', category: 'rewatch', genre: 'Animation', watched: false },
         { id: 'rw-8', title: 'Arrival', category: 'rewatch', genre: 'Sci-Fi', watched: false },
-        // My movies (user picks)
-        { id: 'm-1', title: 'Blade Runner 2049', category: 'mine', genre: 'Sci-Fi', watched: false },
-        { id: 'm-2', title: 'The Prestige', category: 'mine', genre: 'Mystery', watched: false },
-        { id: 'm-3', title: 'Interstellar', category: 'mine', genre: 'Sci-Fi', watched: false },
-        // Her movies (friend picks)
-        { id: 'h-1', title: 'La La Land', category: 'hers', genre: 'Romance', watched: false },
-        { id: 'h-2', title: 'Little Women', category: 'hers', genre: 'Drama', watched: false },
-        { id: 'h-3', title: 'Pride & Prejudice', category: 'hers', genre: 'Romance', watched: false }
     ]
 };
