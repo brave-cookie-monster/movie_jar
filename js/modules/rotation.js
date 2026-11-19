@@ -1,8 +1,8 @@
 /**
  * Rotation Manager
  * Handles the 3-step movie rotation agreed between the user and friend:
- * 1. My Movie (mine)
- * 2. Her Movie (hers)
+ * 1. King Ali (mine)
+ * 2. Queen Dana (hers)
  * 3. Rewatches (rewatch - added from both)
  */
 

@@ -79,8 +79,8 @@ export const JAR_STYLE = {
 
         // Category-based colors for slips inside the jar
         categoryColors: {
-            mine: '#FBBF24',      // Warm Amber (My Movie)
-            hers: '#FB7185',      // Soft Rose / Pink (Her Movie)
+            mine: '#FBBF24',      // Warm Amber (King Ali)
+            hers: '#FB7185',      // Soft Rose / Pink (Queen Dana)
             rewatch: '#818CF8',   // Indigo / Violet (Rewatches)
             default: '#38BDF8'    // Soft Cyan
         },

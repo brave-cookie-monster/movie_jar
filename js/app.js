@@ -160,7 +160,7 @@ class MovieJarApp {
 
     /**
      * Render the 3-step rotation tracker:
-     * 1. My Movie -> 2. Her Movie -> 3. Rewatches
+     * 1. King Ali -> 2. Queen Dana -> 3. Rewatches
      */
     renderRotationBar() {
         const container = document.getElementById('rotationStepsContainer');

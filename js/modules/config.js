@@ -13,31 +13,31 @@ export const CONFIG = {
     },
 
     // Rotation steps agreed upon:
-    // 1. my movie
-    // 2. her movies
+    // 1. King Ali
+    // 2. Queen Dana
     // 3. rewatches (added from both of us)
     rotation: [
         {
             id: 'mine',
-            label: 'My Movie',
-            shortLabel: 'My Pick',
-            owner: 'Me',
-            icon: 'fa-user-astronaut',
+            label: 'King Ali',
+            shortLabel: 'King Ali',
+            owner: 'King Ali',
+            icon: 'fa-crown',
             color: 'amber',
             badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800',
             accentColor: '#f59e0b',
-            description: 'Movie picked by you'
+            description: 'Movie picked by King Ali'
         },
         {
             id: 'hers',
-            label: 'Her Movie',
-            shortLabel: 'Her Pick',
-            owner: 'Her',
-            icon: 'fa-heart',
+            label: 'Queen Dana',
+            shortLabel: 'Queen Dana',
+            owner: 'Queen Dana',
+            icon: 'fa-crown',
             color: 'rose',
             badgeClass: 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300 dark:border-rose-800',
             accentColor: '#f43f5e',
-            description: 'Movie picked by her'
+            description: 'Movie picked by Queen Dana'
         },
         {
             id: 'rewatch',

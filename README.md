@@ -6,8 +6,8 @@ A modern, cinematic web application for picking movie night selections adhering 
 
 1. **Movie Focused**: Designed specifically for film selections with genres, movie tickets, and cinephile aesthetics.
 2. **Agreed 3-Step Rotation**:
-   - **Turn 1: My Movie** (User's pick)
-   - **Turn 2: Her Movie** (Friend's pick)
+   - **Turn 1: King Ali**
+   - **Turn 2: Queen Dana**
    - **Turn 3: Rewatches** (Added by both)
    - Automatic advancement upon drawing/watching, plus manual turn switcher.
 3. **Database Always Integrated**:
